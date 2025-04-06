@@ -11,6 +11,7 @@ class PoolSelectionManager:
         """
         self.entry = None
         self.db = db
+        self.props = None
 
     def get_time_group(self):
         """
@@ -19,7 +20,7 @@ class PoolSelectionManager:
         """
         
         # Find the earliest start_time
-        earliest_prop = min(self.entry, key=lambda x: datetime.strptime(x['start_time'], '%Y-%m-%d %H:%M:%S'))
+        earliest_prop = min(self.props, key=lambda x: datetime.strptime(x['start_time'], '%Y-%m-%d %H:%M:%S'))
         earliest_start_time = datetime.strptime(earliest_prop['start_time'], '%Y-%m-%d %H:%M:%S')
 
         # Round down to the nearest 30-minute interval
@@ -56,7 +57,7 @@ class PoolSelectionManager:
             return result.inserted_id
     
     def insert_entry(self,time_group_id):
-        entry_size = len(self.entry)
+        entry_size = len(self.props)
 
         # Create the entry document
         entry_document = {
@@ -74,6 +75,7 @@ class PoolSelectionManager:
     def add_entry_to_pool(self, entry):
         # Step 1: Get the earliest start_time's time group
         self.entry = entry
+        self.props = entry['props']
         earliest_time_group = self.get_time_group()
 
         # Step 2: Get or create the time group document and get its ID

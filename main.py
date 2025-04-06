@@ -20,29 +20,53 @@ def start_time_group(db,time):
     return CompetitionManager(db, time).process_time_banks()
 
 
-# Load entries from 'entries.json'
-entries = load_entries_from_json('entries.json')
+#Step 1, right after new entry is created, add entry to a qeueu
+'''
+This is done in a seperate service after a user makes a new entry
+'''
+
+
+#Step 2, grab entry at top of queue, add it to the correct pool
+'''
+This qeueue service will be constanty running
+add_entry_to_pool will be connected lambda that is triggered for an entry at the top of the queue
+'''
 db = setup_db()
 poolManager = PoolSelectionManager(db)
-
+# Load entries from 'entries.json'
+entries = load_entries_from_json('entries.json')
 for entry in entries:
     poolManager.add_entry_to_pool(entry)
 
-#get number of db['entries'] documents
-print(f"Total Entries added: {db.entries.count_documents({})}")
 
-#print one entry
-print(db.entries.find_one())
-
-# for each entry_size from 2 to 8, get the number of entries
-for entry_size in range(2, 9):
-    print(f"Number of entries with size {entry_size}: {db.entries.count_documents({'entry_size': entry_size})}")
-
-# get one time_group and its start_time
-time_group = db.time_groups.find_one()
-print(f"Time group: {time_group}")
-
+#Step 3, at end of time_bank, add entries into their competitions
+'''
+For the (18:00:00 - 18:30:00] time bank, this will be triggered around 18:31:00, pass in the time to the start_time_group lambda
+'''
 time = '2025-10-15 18:00:00'
 competitions = start_time_group(db,time)
-# print(f"Competitions: {competitions}")
+
+
+
+# total entries added
+print(f"Total Entries added: {db.entries.count_documents({})}")
+for entry_size in range(2, 9):
+    print(f"Entry size {entry_size} count: {db.entries.count_documents({'entry_size': entry_size})}")
+print()
+for pool_name, competitions in competitions.items():
+    print(f"{pool_name} n competitions: {len(competitions)}")
+    for i, competition in enumerate(competitions):
+        print(f"Comp {i + 1} Size: {len(competition['entries'])}")
+        print(f"N matches: {competition['match_num']}")
+        print()
+    print()
+
+# two_entries = competitions['2_entry'][0]["entries"]
+# two_entries_matches = competitions['2_entry'][0]["matches"]
+# for entry in two_entries:
+#     print(entry)
+# print()
+# print()
+# for entry in two_entries_matches:
+#     print(entry)
 

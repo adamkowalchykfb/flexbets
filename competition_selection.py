@@ -2,13 +2,13 @@ class CompetitionManager:
     def __init__(self, db, time):
         # Initialize a dictionary of competitions for each pool size
         self.competitions_by_pool = {
-            "2_entry": [],
-            "3_entry": [],
-            "4_entry": [],
-            "5_entry": [],
-            "6_entry": [],
-            "7_entry": [],
-            "8_entry": []
+            "2_props": [],
+            "3_props": [],
+            "4_props": [],
+            "5_props": [],
+            "6_props": [],
+            "7_props": [],
+            "8_props": []
         }
 
         self.db = db
@@ -18,7 +18,7 @@ class CompetitionManager:
         """
         Try to add an entry to a competition, or create a new one if no match is found.
         """
-        prop_combo = (entry['name_id'], entry['market_id'], entry['market_value'], entry['market_selection'])
+        prop_combo = (entry['name_id'], entry['market_id'], entry['is_higher'])
         
         # Check if the entry's unique combination already exists in the competition's unique_props_dict
         if prop_combo not in competition['unique_props_dict']:
@@ -37,13 +37,10 @@ class CompetitionManager:
         if self.competitions_by_pool[pool_size]:
             competition = min(self.competitions_by_pool[pool_size], key=lambda x: len(x['entries']))
             competition['entries'].append(entry)
-            # print(entry)
-            # breakpoint()
-            for prop in entry:
-                # print(prop)
-                # breakpoint()
-                key = (prop['name_id'],prop['market_id'], prop['market_value'], prop['market_selection'])
-                competition['unique_props_dict'][key] = key
+            for prop in entry['props']:
+                if prop['main_line'] == True:
+                    key = (prop['name_id'],prop['market_id'], prop['is_higher'])
+                    competition['unique_props_dict'][key] = key
 
     # Create the required number of competitions based on pool size // 20
     def create_competitions(self,pool_size, pool_name):
@@ -57,37 +54,46 @@ class CompetitionManager:
             new_competition = {'entries': [], 'unique_props_dict': {}, 'match_num': 0, 'matches': []}
             self.competitions_by_pool[pool_name].append(new_competition)
 
-    # Function to find prop match (swapping market_selection)
+    # Function to find prop match (swapping is_higher)
     def find_prop_match(self,prop):
         """
-        Given a prop, find the matching prop by swapping the market_selection.
+        Given a prop, find the matching prop by swapping the is_higher.
         """
-        match = prop.copy()
-        match['market_selection'] = 'Lower' if prop['market_selection'] == 'Higher' else 'Higher'
-        return match
+        prop_match = prop.copy()
+        prop_match['is_higher'] = False if prop['is_higher'] else 'is_lower'
+        return prop_match
 
     # Add entry to competition by searching for a match
     def add_entry_to_correct_competition(self,entry, pool_size):
         """
         Adds entry to the correct competition by checking for prop matches in the pool.
         """
+        added_to_comp = False
         # Loop through each prop in the entry
-        for prop in entry:
+        for prop in entry['props']:
+            # Skip if the prop is not a main line
+            if prop['main_line'] == False:
+                continue
+             # Find the matching prop by swapping the is_higher
             prop_match = self.find_prop_match(prop)  # Find the matching prop
             
             # Search for the matching prop in all competitions of the same pool
-            added_to_comp = False
             for competition in self.competitions_by_pool[pool_size]:
                 # Search for the matching prop in the competition's unique_props_dict
-                if (prop_match['name_id'], prop_match['market_id'], prop_match['market_value'], prop_match['market_selection']) in competition['unique_props_dict']:
+                if (prop_match['name_id'], prop_match['market_id'], prop_match['is_higher']) in competition['unique_props_dict']:
+
                     # If match found, add the entry to the competition
                     competition['entries'].append(entry)
+
+                    # used for stats
                     competition['matches'].append(entry)
                     competition['match_num'] += 1
+
                     added_to_comp = True
-                    for prop in entry:
-                        key = (prop['name_id'],prop['market_id'], prop['market_value'], prop['market_selection'])
-                        competition['unique_props_dict'][key] = key
+                    for prop in entry['props']:
+                        if prop['main_line'] == True:
+                            key = (prop['name_id'],prop['market_id'], prop['is_higher'])
+                            competition['unique_props_dict'][key] = key
                     break
             
             if added_to_comp:
@@ -110,14 +116,13 @@ class CompetitionManager:
         pools = self.db.entries.aggregate([
             {"$match": {"time_group_id": time_group_id}},
             {"$group": {"_id": "$entry_size", "entries": {"$push": "$$ROOT"}}}
-        ])
-        print(f"Processing time bank: {self.time}") 
+        ]) 
 
         # Loop through the pools and create competitions
         for pool in pools:
             pool_size = pool['_id']
             pool_entries = pool['entries']
-            pool_name = f"{pool_size}_entry"
+            pool_name = f"{pool_size}_props"
             
             # Create competitions based on number of entries (divided by 20)
             self.create_competitions(len(pool_entries), pool_name)
@@ -126,21 +131,4 @@ class CompetitionManager:
             for entry in pool_entries:
                 self.add_entry_to_correct_competition(entry['entry'], pool_name)
             
-            # print the number of competitions created for each pool size
-            print(f"Created {len(self.competitions_by_pool[pool_name])} competitions for wntry size {pool_size}")
-            #  print the number of entries in each competition
-            for competition in self.competitions_by_pool[pool_name]:
-                print(f"Competition size: {len(competition['entries'])}")
-            print()
         return self.competitions_by_pool
-
-        # for pool_name, pool in pools.items():  # Loop 1
-        #     pool_size = len(pool)
-            
-        #     # Create competitions based on number of entries (divided by 20)
-        #     self.create_competitions(pool_size, pool_name)
-            
-        #     # Loop through the entries in the pool and try to add them to competitions
-        #     for entry in pool:  # Loop through each entry group in the pool
-        #         # Add the entry to its correct competition
-        #         self.add_entry_to_correct_competition(entry, pool_name)
