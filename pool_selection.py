@@ -12,6 +12,7 @@ class PoolSelectionManager:
         self.entry = None
         self.db = db
         self.props = None
+        self.time_block_size = 30
 
     def get_time_group(self):
         """
@@ -25,7 +26,7 @@ class PoolSelectionManager:
 
         # Round down to the nearest 30-minute interval
         minutes = earliest_start_time.minute
-        rounded_minutes = math.floor(minutes / 30) * 30  # Get the nearest lower multiple of 30
+        rounded_minutes = math.floor(minutes / self.time_block_size) * self.time_block_size
         rounded_time = earliest_start_time.replace(minute=rounded_minutes, second=0, microsecond=0)
 
         # return date in string format
@@ -40,7 +41,7 @@ class PoolSelectionManager:
         :return: The ID of the time group.
         """
         # Check if the time group exists
-        time_group = self.db.time_groups.find_one({"start_time": time_group_start_time})
+        time_group = self.db.time_groups.find_one({"start_time": time_group_start_time, "game_type": self.entry['game_type']})
         
         if time_group:
             # If the time group exists, return its ID
@@ -49,6 +50,7 @@ class PoolSelectionManager:
             # If the time group doesn't exist, create a new time group
             new_time_group = {
                 "start_time": time_group_start_time,
+                "game_type": self.entry['game_type']
             }
             # Insert the new time group into the collection
             result = self.db.time_groups.insert_one(new_time_group)
